@@ -1,4 +1,4 @@
-name: massai mara park 01 single job test
+name: massai mara park 01 multiple jobs
 
 on:
   workflow_dispatch
@@ -31,7 +31,7 @@ jobs:
           name: application-jar
           path: build/libs/*.jar
 
-  deploy_and_test:
+  deploy:
     runs-on: ubuntu-22.04
     needs: build
     steps:
@@ -41,28 +41,23 @@ jobs:
           name: application-jar
           path: .
 
-      - name: Rename jar
-        run: mv ./*.jar app.jar
+      - name: check downloaded files
+        run: ls -al
 
-      - name: Run Spring Boot and test
+      - name: Run Spring Boot application
         run: |
-          nohup java -jar app.jar > app.log 2>&1 &
-          echo "Waiting for Spring Boot to start..."
+          java -jar ./massai_mara_park-0.0.1-SNAPSHOT.jar &
+          sleep 60
 
-          # 30초간 포트 8080이 열릴 때까지 대기
-          for i in {1..30}; do
-            if curl -s http://localhost:8080 > /dev/null; then
-              echo "Server is up!"
-              break
-            fi
-            echo "Waiting..."
-            sleep 2
-          done
+  # test:
+  #   runs-on: ubuntu-22.04
+  #   needs: deploy
+  #   steps:
+      - name: Test Endpoint #1
+        run: curl --fail http://localhost:8080
 
-          echo "=== Application Logs ==="
-          cat app.log
+      - name: Test Endpoint #2
+        run: curl --fail http://localhost:8080/images
 
-          echo "Running API tests..."
-          curl --fail http://localhost:8080
-          curl --fail http://localhost:8080/images
-          curl --fail http://localhost:8080/animal
+      - name: Test Endpoint #3
+        run: curl --fail http://localhost:8080/animal
