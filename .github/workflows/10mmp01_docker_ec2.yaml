@@ -1,0 +1,122 @@
+# 도커 파일 만들어서 허브에 올리기
+# 허브에 올라간 걸 배포서버에서 compose를 이용해 실행
+# compose 파일을 checkout이나 내려받아서 배포서버에서 실행
+
+name: massai mara park 01 docker ec2
+
+on: 
+  workflow_dispatch
+
+env:
+  DOCKER_USERNAME: oneteak1
+  IMAGE_NAME: massai_mara
+  IMAGE_TAG: v${{ github.run_number }}
+  USERNAME: "ubuntu"
+  HOSTNAME: 43.200.254.122
+  
+
+jobs:
+  mmp01_compose_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check Docker Images
+        run: docker image ls
+
+      - name: Save Docker Image
+        run: docker save ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} > image.tar
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
+
+  hub_push:
+    needs: mmp01_compose_build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Check Downloaded Image
+        run: ls -al
+
+      - name: Load Docker Image
+        run: docker load < image.tar
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker Push & Tag Operations
+        run: |
+          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+                     ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker search ${{ env.IMAGE_NAME }}
+
+      - name: Logout from Docker Hub
+        if: always()
+        run: docker logout
+
+  upload_compose:
+    needs: hub_push
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: copy file to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.HOSTNAME }}
+          username: ${{ env.USERNAME }}
+          key: ${{secrets.EC2_PRIVATEKEY}}
+          port: 22
+          source: "compose-multijobs.yaml"
+          target: "/home/${{ env.USERNAME }}"
+          
+
+        
+  run_test:
+    needs: upload_compose
+    runs-on: ubuntu-22.04
+    steps: 
+
+      - name: deploy on EC2
+        uses: appleboy/ssh-action@master
+        with: 
+          host: ${{ env.HOSTNAME }}
+          username: ${{ env.USERNAME }}
+          key: ${{secrets.EC2_PRIVATEKEY}}
+          port: 22
+          script: |
+            docker compose -f ./compose-multijobs.yaml up -d
+            sleep 30
+            docker compose ps
+            docker compose logs
+
+    
