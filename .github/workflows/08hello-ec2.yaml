@@ -28,8 +28,8 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no \
           -o "UserKnownHostsFile=/dev/null" \
-          -i ~/.ssh/ec2_key -p 22 \
-          ${USER_NAME}@${HOSTNAME} '
+          -i ~/.ssh/ec2_key -p 12137 \
+          ${{ env.EC2_USER_NAME }}@${{ env.EC2_HOSTNAME }} '
           
           echo "현재사용자: $(whoami)"
           echo "호스트명: $(hostname)"
@@ -38,6 +38,13 @@ jobs:
           '
 
           echo "SSH 연결 테스트 종료..."
+
+      - name: upload README.md via SCP
+        run: |
+          echo "Hello, EC2 SCP" > README.md
+          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no \
+          -o "UserKnownHostsFile=/dev/null" \
+          -P 22 README.me ${{ env.EC2_USER_NAME }}@${{ env.EC2_HOSTNAME }}:~/
 
       - name: cleanup private key
         if: always()
