@@ -11,7 +11,6 @@ env:
 jobs:
   mmp01_compose_build:
     runs-on: ubuntu-22.04
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -45,7 +44,6 @@ jobs:
   hub_push:
     needs: mmp01_compose_build
     runs-on: ubuntu-22.04
-
     steps:
       - name: Download Docker Image Artifact
         uses: actions/download-artifact@v4
@@ -79,7 +77,6 @@ jobs:
   run_test:
     needs: hub_push
     runs-on: ubuntu-22.04
-
     steps: 
       - name: Checkout Code
         uses: actions/checkout@v4
