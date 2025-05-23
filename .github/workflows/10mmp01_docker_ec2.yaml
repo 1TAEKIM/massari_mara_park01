@@ -104,18 +104,15 @@ jobs:
     needs: upload_compose
     runs-on: ubuntu-22.04
     steps: 
-
       - name: deploy on EC2
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v0.1.10
         with: 
-          host: ${{ env.HOSTNAME }}
-          username: ${{ env.USERNAME }}
-          key: ${{secrets.EC2_PRIVATEKEY}}
+          host: '43.200.254.122'
+          username: 'ubuntu'
+          key: ${{ secrets.EC2_PRIVATEKEY }}
           port: 22
           script: |
-            docker compose -f ./compose-multijobs.yaml up -d
+            docker compose -f ~/compose-multijobs.yaml up -d
             sleep 30
             docker compose ps
             docker compose logs
-
-    
