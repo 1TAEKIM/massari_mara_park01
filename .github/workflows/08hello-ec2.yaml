@@ -8,6 +8,10 @@ jobs:
     name: test ec2 connection
     runs-on: ubuntu-22.04
 
+    env:
+      EC2_HOSTNAME: "43.200.254.122"
+      EC2_USER_NAME: "ubuntu"
+
     steps: 
       - name: setup SSH Directory
         run: |
@@ -20,9 +24,7 @@ jobs:
           chmod 600 ~/.ssh/ec2_key
 
       - name: test SSH connect to EC2
-        env:
-          EC2_HOSTNAME: "43.200.254.122"
-          EC2_USER_NAME: "ubuntu"
+        
         run: |
           echo "SSH 연결 테스트 시작..."
 
