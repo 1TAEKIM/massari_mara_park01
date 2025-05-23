@@ -104,15 +104,22 @@ jobs:
     needs: upload_compose
     runs-on: ubuntu-22.04
     steps: 
-      - name: deploy on EC2
+      - name: Deploy on EC2 using SSH
         uses: appleboy/ssh-action@v0.1.10
         with: 
-          host: '43.200.254.122'
+          host: '43.200.254.122'                     # ← 반드시 작은따옴표
           username: 'ubuntu'
-          key: ${{ secrets.EC2_PRIVATEKEY }}
+          key: ${{ secrets.EC2_PRIVATEKEY }}         # ← 반드시 PEM 형식 줄바꿈 포함
           port: 22
           script: |
+            echo "[1] Starting docker-compose up..."
             docker compose -f ~/compose-multijobs.yaml up -d
+
+            echo "[2] Waiting for containers to start..."
             sleep 30
+
+            echo "[3] Listing running containers:"
             docker compose ps
+
+            echo "[4] Logs from services:"
             docker compose logs
