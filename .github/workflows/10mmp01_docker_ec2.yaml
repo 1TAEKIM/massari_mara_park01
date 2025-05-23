@@ -11,9 +11,8 @@ env:
   DOCKER_USERNAME: oneteak1
   IMAGE_NAME: massai_mara
   IMAGE_TAG: v${{ github.run_number }}
-  USERNAME: "ubuntu"
+  USERNAME: ubuntu
   HOSTNAME: 43.200.254.122
-  
 
 jobs:
   mmp01_compose_build:
