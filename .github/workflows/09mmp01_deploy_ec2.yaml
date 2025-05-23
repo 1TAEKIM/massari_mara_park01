@@ -4,8 +4,8 @@ on:
   workflow_dispatch
 
 env:
-  EC2_HOSTNAME: 43.200.254.122
-  EC2_USERNAME: ubuntu
+  EC2_HOSTNAME: "43.200.254.122"
+  EC2_USERNAME: "ubuntu"
 
 jobs:
   build_jar:
