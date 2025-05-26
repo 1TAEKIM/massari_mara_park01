@@ -1,33 +1,33 @@
-# 도커 파일 만들어서 허브에 올리기
-# 허브에 올라간 걸 배포서버에서 compose를 이용해 실행
-# compose 파일을 checkout이나 내려받아서 배포서버에서 실행
-
 name: massai mara park 01 docker ec2
 
-on: 
+on:
   workflow_dispatch
 
 env:
   DOCKER_USERNAME: oneteak1
   IMAGE_NAME: massai_mara
   IMAGE_TAG: v${{ github.run_number }}
-  USERNAME: ubuntu
   HOSTNAME: 43.200.254.122
+  USERNAME: ubuntu  
 
 jobs:
-  mmp01_compose_build:
+  build_image:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: setup QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Setup Docker Buildx
+        
+      - name: setup docker buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Image
+      # arm64 에뮬레이션 - QEmu 
+      - name: setup QEMU
+        uses: docker/setup-qemu-action@v3 
+        with:
+          platforms: linux/amd64,linux/arm64        
+
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -35,54 +35,56 @@ jobs:
           platforms: linux/arm64
           push: false
           load: true
-          tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Check Docker Images
-        run: docker image ls
+      - name: check image
+        run: |
+          docker image ls
 
-      - name: Save Docker Image
-        run: docker save ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} > image.tar
+      - name: save docker image
+        run: |
+          docker save ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:arm64 > image.tar   
 
-      - name: Upload Docker Image Artifact
+      - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
           name: docker-image
           path: image.tar
 
   hub_push:
-    needs: mmp01_compose_build
+    needs: build_image
     runs-on: ubuntu-22.04
+
     steps:
-      - name: Download Docker Image Artifact
+      - name: download JAR artifact
         uses: actions/download-artifact@v4
         with:
           name: docker-image
 
-      - name: Check Downloaded Image
+      - name: check downloaded image
         run: ls -al
 
-      - name: Load Docker Image
-        run: docker load < image.tar
-
-      - name: Login to Docker Hub
+      - name: load docker image
+        run: |
+          docker load < image.tar
+      
+      - name: login to docker hub
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKER_USERNAME }}
+          username: ${{ env.DOCKER_USERNAME }} 
           password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: docker operations
+        run: |       
+          docker  push  ${{env.DOCKER_USERNAME}}/${{env.IMAGE_NAME}}:arm64
+          docker  search   ${{env.IMAGE_NAME}}:arm64
 
-      - name: Docker Push & Tag Operations
-        run: |
-          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          docker tag ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
-                     ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          docker search ${{ env.IMAGE_NAME }}
-
-      - name: Logout from Docker Hub
+      - name: logout from docker hub
         if: always()
-        run: docker logout
+        run: docker logout    
+
 
   upload_compose:
     needs: hub_push
@@ -97,33 +99,32 @@ jobs:
         with:
           host: ${{ env.HOSTNAME }}
           username: ${{ env.USERNAME }}
-          key: ${{secrets.EC2_PRIVATEKEY}}
-          port: 22
+          key: ${{ secrets.EC2_PRIVATEKEY }}
+          port: 12137
           source: "compose-multijobs.yaml"
           target: "/home/${{ env.USERNAME }}"
-          
 
-        
+
   run_test:
     needs: upload_compose
     runs-on: ubuntu-22.04
-    steps: 
-      - name: Deploy on EC2 using SSH
-        uses: appleboy/ssh-action@v0.1.10
+
+    steps:
+
+      - name: deploy on EC2
+        uses: appleboy/ssh-action@master 
         with: 
-          host: '43.200.254.122'                     # ← 반드시 작은따옴표
-          username: 'ubuntu'
-          key: ${{ secrets.EC2_PRIVATEKEY }}         # ← 반드시 PEM 형식 줄바꿈 포함
+          host: ${{ env.HOSTNAME }}
+          username: ${{ env.USERNAME }}
+          key: ${{ secrets.EC2_PRIVATEKEY }}
           port: 22
           script: |
-            echo "[1] Starting docker-compose up..."
-            docker compose -f ~/compose-multijobs.yaml up -d
+            docker compose -f ./compose-multijobs.yaml down  
+            docker image rm -f siestageek/massai_mara
+            docker compose -f ./compose-multijobs.yaml up -d
 
-            echo "[2] Waiting for containers to start..."
-            sleep 30
-
-            echo "[3] Listing running containers:"
-            docker compose ps
-
-            echo "[4] Logs from services:"
-            docker compose logs
+            sleep 15
+          
+            docker compose -f ./compose-multijobs.yaml ps
+            docker compose -f ./compose-multijobs.yaml logs
+        
